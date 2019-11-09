@@ -1,9 +1,9 @@
 import os
 from cryptography.hazmat.primitives import hashes, padding, ciphers
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 import base64
 import binascii
-
 
 def format_plaintext(is_admin, password):
     tmp = bytearray(str.encode(password))
@@ -11,6 +11,8 @@ def format_plaintext(is_admin, password):
 
 def is_admin_cookie(decrypted_cookie):
     return decrypted_cookie[0] == 1
+
+data = b"auth additional data"
 
 class Encryption(object):
     def __init__(self, in_key=None):
@@ -22,30 +24,20 @@ class Encryption(object):
             self._key = in_key
 
     def encrypt(self, msg):
-        padder = padding.PKCS7(ciphers.algorithms.AES.block_size).padder()
-        padded_msg = padder.update(msg) + padder.finalize()
         iv = os.urandom(self._block_size_bytes)
-        encryptor = ciphers.Cipher(ciphers.algorithms.AES(self._key),
-                                   ciphers.modes.CBC(iv),
-                                   self._backend).encryptor()
-        _ciphertext = iv + encryptor.update(padded_msg) + encryptor.finalize()
-        return _ciphertext
+        encryptor = Cipher(algorithms.AES(self._key), modes.GCM(iv), self._backend).encryptor()
+        encryptor.authenticate_additional_data(data)
+        ct = encryptor.update(msg) + encryptor.finalize()
+        return iv + encryptor.tag + ct
     
     def decrypt(self, ctx):
-        iv, ctx = ctx[:self._block_size_bytes], ctx[self._block_size_bytes:]
-        unpadder = padding.PKCS7(ciphers.algorithms.AES.block_size).unpadder()
-        decryptor = ciphers.Cipher(ciphers.algorithms.AES(self._key),
-                                   ciphers.modes.CBC(iv),
-                                   self._backend).decryptor()        
-        padded_msg = decryptor.update(ctx) + decryptor.finalize()
-        try:
-            msg = unpadder.update(padded_msg) + unpadder.finalize()
-            return msg  # Successful decryption
-        except ValueError:
-            return False  # Error!!
+        iv, ct = ctx[:self._block_size_bytes], ctx[self._block_size_bytes:]
+        tag, ct = ct[:self._block_size_bytes], ct[self._block_size_bytes:]
 
-    
+        decryptor = Cipher(algorithms.AES(self._key), modes.GCM(iv, tag), self._backend).decryptor()
+        decryptor.authenticate_additional_data(data)
+        return decryptor.update(ct) + decryptor.finalize()
 
         
 if __name__=='__main__':
-    test_encr_decr()
+    pass

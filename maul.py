@@ -22,14 +22,26 @@ def do_setcoins_form(sess,uname, coins):
 def do_attack():
 	sess = Session()
   #you'll need to change this to a non-admin user, such as 'victim'.
-	uname =""
-	pw = ""
-	assert(do_login_form(sess, uname,pw))
+	uname ="victim"
+	pw = "victim"
+	assert(do_login_form(sess, uname, pw))
 	#Maul the admin cookie in the 'sess' object here
   
+	admin_cookie = sess.cookies.get("admin")
+	mauled_cookie = bytearray.fromhex(admin_cookie)
+	mauled_cookie[0] ^= 1
+
+	cookies = sess.cookies
+	cookies.set(
+		"admin",
+		mauled_cookie.hex(),
+		domain=cookies.list_domains()[0],
+		path=cookies.list_paths()[0]
+	)
+
 	target_uname = uname
 	amount = 5000
-	result = do_setcoins_form(sess, target_uname,amount)
+	result = do_setcoins_form(sess, target_uname, amount)
 	print("Attack successful? " + str(result))
 
 
